@@ -1,0 +1,1927 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>スーパーemoji並べ</title>
+    <style>
+        body {
+            background-color: black;
+            color: white;
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            height: 100vh;
+            margin: 0;
+            overflow-x: hidden;
+        }
+
+        #game-board {
+            display: grid;
+            grid-template-columns: repeat(3, 100px);
+            grid-template-rows: repeat(3, 100px);
+            gap: 5px;
+            margin: 20px 0;
+        }
+
+        .grid-item {
+            width: 100px;
+            height: 100px;
+            background-color: black;
+            border: 2px solid white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2em;
+            cursor: pointer;
+            transition: background-color 0.3s, border-color 0.3s;
+        }
+
+        .player {
+            border: 5px solid blue;
+            box-sizing: border-box;
+        }
+
+        .npc {
+            border: 5px solid red;
+            box-sizing: border-box;
+        }
+
+        .sealed {
+            color: red;
+            font-size: 1.5em;
+            border: 2px solid gray;
+            /* 追加 */
+        }
+
+        .hand-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            overflow-x: auto;
+            padding: 20px 120px 20px 120px;
+            width: 100%;
+            box-sizing: border-box;
+            justify-content: center;
+            flex-wrap: nowrap;
+        }
+
+        .hand-item {
+            font-size: 2em;
+            cursor: pointer;
+            transition: transform 0.2s;
+            flex-shrink: 0;
+            flex-basis: calc(100% / 10);
+        }
+
+        .hand-item:hover {
+            transform: scale(1.2);
+        }
+
+        #message,
+        #turn-indicator {
+            font-size: 1.2em;
+            margin-top: 10px;
+            text-align: center;
+        }
+
+        #restart-button,
+        #start-button,
+        #forfeit-button,
+        #log-button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 1em;
+            background-color: white;
+            color: black;
+            border: none;
+            cursor: pointer;
+        }
+
+        #restart-button:hover,
+        #start-button:hover,
+        #forfeit-button:hover,
+        #log-button:hover {
+            background-color: lightgray;
+        }
+
+        #rule-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            text-align: center;
+            color: white;
+        }
+
+        #level-select {
+            margin-top: 20px;
+        }
+
+        #level-select button {
+            margin: 5px;
+            padding: 10px 20px;
+            font-size: 1em;
+            background-color: white;
+            color: black;
+            border: none;
+            cursor: pointer;
+        }
+
+        #level-select button:hover {
+            background-color: lightgray;
+        }
+
+        .hand-title {
+            font-size: 1em;
+            margin: 5px 0;
+            text-align: center;
+        }
+
+        .hand-title-container {
+            display: flex;
+            justify-content: center;
+            width: 100%;
+        }
+
+        #log-container {
+            display: none;
+            background-color: #222;
+            padding: 80px;
+            margin-top: 10px;
+            width: 90%;
+            max-height: 400px;
+            overflow-y: auto;
+            box-sizing: border-box;
+        }
+
+        /* テキストログボタンを初期状態で非表示に設定 */
+
+        #log-button {
+            display: none;
+        }
+
+        /* 追加するスタイル */
+        @media screen and (max-width: 600px) {
+            .hand-container {
+                flex-wrap: wrap;
+                /* 複数行にする */
+                justify-content: flex-start;
+                /* 左寄せにする */
+                padding: 10px;
+                /* パディングを調整 */
+            }
+
+            .hand-item {
+                flex-basis: calc(100% / 7);
+                /* 1行に7つ表示するように調整 */
+            }
+        }
+
+    </style>
+</head>
+
+<body>
+    <div id="rule-container">
+        <h1>スーパーemoji並べ</h1>
+        <p>絵文字を使った１人用の三目並べゲームです。
+            <br> CPUと交互に手札のコマを１つ選び、空いているマスに配置します。
+            <br> 自分のコマを縦・横・斜めのいずれかに3つ並べたプレイヤーが勝者となります。
+            <br> プレイヤー側が先行となります。
+            <br> 出せるコマがない場合は相手のターンとなります。
+            <br> お互いに出せるコマがなくなった場合は引き分けです。
+        </p>
+        <div id="level-select">
+            <p>相手のレベルを選択してください:</p>
+            <button onclick="startGame(1)">レベル 1</button>
+            <button onclick="startGame(2)">レベル 2</button>
+            <button onclick="startGame(3)">レベル 3</button>
+            <button onclick="startGame(4)">レベル 4</button>
+            <button onclick="startGame(5)">レベル 5</button>
+        </div>
+        <div id="win-streak-score">
+            <p><br>連勝数: 0 スコア: 0点</p>
+        </div>
+    </div>
+    <div id="npc-hand-container" style="display: none;">
+        <div class="hand-title-container">
+            <div class="hand-title">相手の手札</div>
+        </div>
+        <div id="npc-hand" class="hand-container"></div>
+    </div>
+    <div id="game-board" style="display: none;"></div>
+    <div id="player-hand-container" style="display: none;">
+        <div class="hand-title-container">
+            <div class="hand-title">自分の手札</div>
+        </div>
+        <div id="player-hand" class="hand-container"></div>
+    </div>
+    <div id="turn-indicator" style="display: none;">自分のターン</div>
+    <div id="message" style="display: none;"></div>
+    <button id="restart-button" onclick="resetGame()" style="display: none;">もう一度プレイする</button>
+    <button id="forfeit-button" onclick="forfeitGame()" style="display: none;">降参する</button>
+    <button id="log-button" onclick="toggleLog()">テキストログ</button>
+    <div id="log-container"></div>
+    <script>
+        let playerTurn = true;
+        let gameOver = false;
+        const board = Array(9).fill(null);
+        let level = 1;
+        let logEntries = [];
+        let sealedTiles = [];
+        let winStreak = 0;
+        let score = 0;
+        const gameBoard = document.getElementById('game-board');
+        const playerHand = document.getElementById('player-hand');
+        const npcHand = document.getElementById('npc-hand');
+        const message = document.getElementById('message');
+        const turnIndicator = document.getElementById('turn-indicator');
+        const restartButton = document.getElementById('restart-button');
+        const forfeitButton = document.getElementById('forfeit-button');
+        const levelSelect = document.getElementById('level-select');
+        const logContainer = document.getElementById('log-container');
+        const logButton = document.getElementById('log-button');
+        const winStreakScore = document.getElementById('win-streak-score');
+        const emojis = [{
+            emoji: "🐰",
+            name: "ウサギ",
+            rank: "★",
+            hp: 2,
+            effect: "heal_ally",
+            maxHp: 2
+        }, {
+            emoji: "🐷",
+            name: "ブタ",
+            rank: "★",
+            hp: 3,
+            effect: "none",
+            maxHp: 3
+        }, {
+            emoji: "🐝",
+            name: "ハチ",
+            rank: "★",
+            hp: 1,
+            effect: "revengeEffect",
+            maxHp: 1
+        }, {
+            emoji: "🧙",
+            name: "魔法使い",
+            rank: "★",
+            hp: 1,
+            effect: "damage_random_enemy",
+            maxHp: 1
+        }, {
+            emoji: "🔫",
+            name: "拳銃",
+            rank: "★",
+            hp: 1,
+            effect: "damage_self_enemy",
+            maxHp: 1
+        }, {
+            emoji: "🐵",
+            name: "猿",
+            rank: "★★",
+            hp: 1,
+            effect: "swap_position",
+            maxHp: 1
+        }, {
+            emoji: "🐊",
+            name: "ワニ",
+            rank: "★",
+            hp: 2,
+            effect: "damage_column_enemy",
+            maxHp: 2
+        }, {
+            emoji: "🐻",
+            name: "クマ",
+            rank: "★",
+            hp: 2,
+            effect: "damage_row_enemy",
+            maxHp: 2
+        }, {
+            emoji: "🐙",
+            name: "タコ",
+            rank: "★",
+            hp: 2,
+            effect: "damage_heal",
+            maxHp: 2
+        }, {
+            emoji: "🥷",
+            name: "ニンジャ",
+            rank: "★★",
+            hp: 2,
+            effect: "steal_hand",
+            maxHp: 2
+        }, {
+            emoji: "🦄",
+            name: "ユニコーン",
+            rank: "★★",
+            hp: 4,
+            effect: "heal_all_friends",
+            maxHp: 4
+        }, {
+            emoji: "👼",
+            name: "天使",
+            rank: "★★",
+            hp: 4,
+            effect: "add_random_hand_both",
+            maxHp: 4
+        }, {
+            emoji: "👮",
+            name: "警官",
+            rank: "★★",
+            hp: 4,
+            effect: "add_gun",
+            maxHp: 4
+        }, {
+            emoji: "👺",
+            name: "天狗",
+            rank: "★★",
+            hp: 3,
+            effect: "damage_move_enemy",
+            maxHp: 3
+        }, {
+            emoji: "🧛",
+            name: "吸血鬼",
+            rank: "★★",
+            hp: 2,
+            effect: "damage_heal_self",
+            maxHp: 2
+        }, {
+            emoji: "💣",
+            name: "爆弾",
+            rank: "★★",
+            hp: 3,
+            effect: "explode_on_death",
+            maxHp: 3
+        }, {
+            emoji: "🦁",
+            name: "ライオン",
+            rank: "★★",
+            hp: 5,
+            effect: "damage_all_around",
+            maxHp: 5
+        }, {
+            emoji: "👿",
+            name: "悪魔",
+            rank: "★★★",
+            hp: 6,
+            effect: "seal_random",
+            maxHp: 6
+        }, {
+            emoji: "🐉",
+            name: "ドラゴン",
+            rank: "★★★",
+            hp: 6,
+            effect: "damage_all_seal",
+            maxHp: 6
+        }, {
+            emoji: "👽",
+            name: "宇宙人",
+            rank: "★★★",
+            hp: 5,
+            effect: "return_enemy_hand",
+            maxHp: 5
+        }, {
+            emoji: "👹",
+            name: "鬼",
+            rank: "★★★",
+            hp: 6,
+            effect: "damage_adjacent_all_enemy",
+            maxHp: 6
+        }];
+        let playerEmojis = [];
+        let npcEmojis = [];
+
+        function startGame(selectedLevel) {
+            level = selectedLevel;
+            document.getElementById('rule-container').style.display = 'none';
+            document.getElementById('npc-hand-container').style.display = 'block';
+            document.getElementById('player-hand-container').style.display = 'block';
+            turnIndicator.style.display = 'block';
+            gameBoard.style.display = 'grid';
+            message.style.display = 'block';
+            levelSelect.style.display = 'none';
+            forfeitButton.style.display = 'block';
+            logButton.style.display = 'block';
+            logEntries = [];
+            gameOver = false;
+            updateLog("ゲーム開始");
+            logContainer.innerHTML = '';
+            logContainer.style.display = 'none';
+            sealedTiles = [];
+
+            // 全てのコマのHPをmaxHpにリセット
+            emojis.forEach(emoji => {
+                emoji.hp = emoji.maxHp;
+            });
+
+            playerEmojis = generateRandomHand();
+            setupNPCEmojis();
+            renderHand(playerEmojis, playerHand, 'player');
+            renderHand(npcEmojis, npcHand, 'npc');
+            renderBoard();
+            updateTurnIndicator();
+        }
+
+        // 新しいゲームの開始時のコマの初期化
+        function generateRandomHand() {
+            const hand = [];
+            while (hand.length < 10) {
+                const randomEmoji = deepCopy(emojis[Math.floor(Math.random() * emojis.length)]);
+                hand.push(randomEmoji);
+            }
+            return hand;
+        }
+        // 場に出る際のコマの深いコピーを作成する関数
+        function deepCopy(obj) {
+            return JSON.parse(JSON.stringify(obj));
+        }
+
+        function setupNPCEmojis() {
+            const starOne = emojis.filter(emoji => emoji.rank === '★');
+            const starTwo = emojis.filter(emoji => emoji.rank === '★★');
+            const starThree = emojis.filter(emoji => emoji.rank === '★★★');
+            switch (level) {
+                case 1:
+                    npcEmojis = [...generateRandomHand().slice(0, 8), ...shuffleArray(starTwo.map(e => ({
+                        ...e
+                    }))).slice(0, 2)];
+                    break;
+                case 2:
+                    npcEmojis = [...generateRandomHand().slice(0, 7), ...shuffleArray(starTwo.map(e => ({
+                        ...e
+                    }))).slice(0, 2), ...shuffleArray(starThree.map(e => ({
+                        ...e
+                    }))).slice(0, 1)];
+                    break;
+                case 3:
+                    npcEmojis = [...generateRandomHand().slice(0, 5), ...shuffleArray(starTwo.map(e => ({
+                        ...e
+                    }))).slice(0, 3), ...shuffleArray(starThree.map(e => ({
+                        ...e
+                    }))).slice(0, 2)];
+                    break;
+                case 4:
+                    npcEmojis = [...generateRandomHand().slice(0, 3), ...shuffleArray(starTwo.map(e => ({
+                        ...e
+                    }))).slice(0, 4), ...shuffleArray(starThree.map(e => ({
+                        ...e
+                    }))).slice(0, 3)];
+                    break;
+                case 5:
+                    // レベル5の手札を★★5枚、★★★5枚に設定（同名のコマが来る可能性あり）
+                    npcEmojis = [
+                        ...Array(5).fill().map(() => ({
+                            ...starTwo[Math.floor(Math.random() * starTwo.length)]
+                        })),
+                        ...Array(5).fill().map(() => ({
+                            ...starThree[Math.floor(Math.random() * starThree.length)]
+                        }))
+                    ];
+                    break;
+            }
+        }
+
+        function renderHand(hand, element, player) {
+            element.innerHTML = '';
+            hand.forEach((emoji, index) => {
+                const handItem = document.createElement('div');
+                handItem.className = 'hand-item';
+                handItem.textContent = emoji.emoji;
+                handItem.onclick = () => selectEmoji(index, player);
+                element.appendChild(handItem);
+            });
+        }
+
+        function renderBoard() {
+            gameBoard.innerHTML = '';
+            board.forEach((cell, index) => {
+                const gridItem = document.createElement('div');
+                gridItem.className = 'grid-item';
+                gridItem.onclick = () => makeMove(index);
+                if (cell) {
+                    gridItem.textContent = cell.emoji.emoji;
+                    gridItem.style.color = cell.player === 'player' ? 'red' : 'blue';
+                    gridItem.style.backgroundColor = 'gray';
+                    gridItem.classList.add(cell.player === 'player' ? 'player' : 'npc');
+                    gridItem.onclick = () => displayPieceInfo(cell, true);
+                }
+                if (cell && cell.player === 'sealed') {
+                    gridItem.textContent = '❌';
+                    gridItem.classList.add('sealed');
+                    gridItem.onclick = null;
+                }
+                gameBoard.appendChild(gridItem);
+            });
+        }
+
+        function updateTurnIndicator() {
+            turnIndicator.textContent = playerTurn ? '自分のターン' : '相手のターン';
+            turnIndicator.style.color = playerTurn ? 'blue' : 'red';
+        }
+
+        function displayPieceInfo(cell, onBoard = false) {
+            let infoText = '';
+            if (onBoard) {
+                infoText = `場のコマ：${cell.emoji.emoji}（${cell.emoji.name}）ランク${cell.emoji.rank}　HP：${cell.emoji.hp}/${cell.emoji.maxHp}\n効果：${getEffectDescription(cell.emoji.effect)}`;
+            } else if (cell.player === 'player') {
+                infoText = `選択したコマ：${cell.emoji.emoji}（${cell.emoji.name}）ランク${cell.emoji.rank}　HP：${cell.emoji.hp}\n効果：${getEffectDescription(cell.emoji.effect)}`;
+            } else {
+                infoText = `相手の手札：${cell.emoji.emoji}（${cell.emoji.name}）ランク${cell.emoji.rank}　HP：${cell.emoji.hp}\n効果：${getEffectDescription(cell.emoji.effect)}`;
+            }
+            message.textContent = infoText;
+        }
+
+        function getEffectDescription(effect) {
+            switch (effect) {
+                case "heal_ally":
+                    return "登場時、自分以外の場の味方一体（ランダム）を1回復する。";
+                case "revengeEffect":
+                    return "このコマがHP0以下になり場から取り除かれた時、場の相手のコマ１体に3ダメージを与える。";
+                case "damage_random_enemy":
+                    return "登場時、場のランダムな相手のコマ1体に2ダメージを与える。";
+                case "damage_self_enemy":
+                    return "登場時、このコマと場のランダムな相手のコマ1体に5ダメージを与える。相手のコマが存在しない場合は発動しない。";
+                case "swap_position":
+                    return "登場時、このコマにタテ・ヨコ・ナナメで隣接するコマが存在する場合、そのコマ1つをランダムに選び、このコマと位置を入れ替える。";
+                case "damage_adjacent_enemy":
+                    return "登場時、周囲1マス以内に相手のコマが存在する場合、そのコマ1体（ランダム）に2点のダメージを与える。";
+                case "damage_column_enemy":
+                    return "登場時、このコマと同じ縦列に相手のコマが存在する場合、そのコマ1体（ランダム）に2点のダメージを与える。";
+                case "damage_row_enemy":
+                    return "登場時、このコマと同じ横列に相手のコマが存在する場合、そのコマ1体（ランダム）に2点のダメージを与える。";
+                case "damage_heal":
+                    return "登場時、周囲1マス以内にこのコマ以外のコマが存在する場合、そのコマ1体（ランダム）に1点のダメージを与え、このコマのHPを1回復する。";
+                case "steal_hand":
+                    return "登場時、相手の手札1枚をランダムに選び、自分の手札にする。";
+                case "heal_every_turn":
+                    return "登場時、周囲1マス以内のコマ（自身を含む）のHPを1回復する。";
+                case "add_gun":
+                    return "登場時、手札に「拳銃」が存在する場合、「拳銃」1体をランダムな空いているマスに出す。もし手札に「拳銃」が存在しない場合、「拳銃」1体を手札に加える。";
+                case "damage_move_enemy":
+                    return "登場時、場のランダムな相手のコマ1体に2ダメージを与える。さらに、そのコマを空いているランダムなマスに移動させる。";
+                case "damage_heal_self":
+                    return "周囲1マス以内に相手のコマが存在する場合、そのコマ1体（ランダム）に2点のダメージを与え、自分のHPを2回復する。";
+                case "explode_on_death":
+                    return "ターン終了時ごとにこのコマは1ダメージ受ける。このコマがHP0以下になり取り除かれた場合、このコマがいたマスの周囲1マス以内のコマ全てに4点のダメージを与える。";
+                case "damage_all_around":
+                    return "登場時、周囲1マス以内にこのコマ以外のコマが存在する場合、そのコマ全てに1点のダメージを与える。";
+                case "heal_all_friends":
+                    return "登場時、このコマ以外の味方のコマ全てのHPを1回復する。もしもこのコマ以外に自分のコマが存在しない場合、ランダムなコマ1体を手札に加える。";
+                case "seal_random":
+                    return "登場時、空いているマス一つをランダムに選び、次の相手ターン終了時まで封印する。";
+                case "damage_all_seal":
+                    return "登場時、このコマ以外の全てのコマに3点のダメージを与える。この効果でコマを取り除いた場合、空いているマス１つを次の相手ターン終了時まで封印する。";
+                case "return_enemy_hand":
+                    return "登場時、場の相手のコマ1体をランダムに選び相手の手札に戻す。";
+                case "damage_adjacent_all_enemy":
+                    return "登場時、タテ・ヨコで隣接する相手のコマ全てに4点のダメージを与える。";
+                case "add_random_hand_both":
+                    return "登場時、お互いの手札にランダムなコマを一つ加える。";
+                default:
+                    return "";
+            }
+        }
+
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+        let selectedEmojiIndex = null;
+
+        function selectEmoji(index, player) {
+            if (!playerTurn || (player !== 'player' && player !== 'npc')) return;
+            selectedEmojiIndex = index;
+            const emoji = player === 'player' ? playerEmojis[index] : npcEmojis[index];
+            displayPieceInfo({
+                emoji: emoji,
+                player: player
+            }, false);
+        }
+
+        let isProcessingEffect = false; // エフェクト処理中かどうかを追跡するフラグ
+
+        async function makeMove(index) {
+            if (gameOver || isProcessingEffect) return; // ゲームオーバーまたはエフェクト処理中は何もしない
+
+            // ターンスキップの条件をチェック
+            checkSkipCondition(); // スキップの可能性をチェック
+            if (!playerTurn) return; // スキップされた場合は関数を終了
+
+            // マスが空いていない場合や、コマが選択されていない場合は何もしない
+            if (board[index] !== null || selectedEmojiIndex === null) return;
+
+            const selectedEmoji = playerEmojis[selectedEmojiIndex];
+            board[index] = {
+                emoji: selectedEmoji,
+                player: 'player'
+            };
+            playerEmojis.splice(selectedEmojiIndex, 1); // プレイヤーの手札から選択したコマを削除
+            selectedEmojiIndex = null;
+            renderHand(playerEmojis, playerHand, 'player'); // プレイヤーの手札を再描画
+            renderBoard(); // ゲームボードを再描画
+            updateLog(`あなたの${selectedEmoji.emoji}が場に出た`);
+
+            // エフェクト処理を開始
+            isProcessingEffect = true;
+            await applyEffect(selectedEmoji, index, 'player'); // エフェクトの適用を待つ
+            isProcessingEffect = false; // エフェクト処理が完了したらフラグを解除
+
+            renderBoard();
+            checkWin(); // 勝敗のチェック
+            if (!gameOver) {
+                await endTurn(); // ターン終了処理
+                playerTurn = false; // NPCのターンに切り替える
+                updateTurnIndicator(); // ターンインジケーターを更新
+                if (npcEmojis.length > 0) setTimeout(npcTurn, 500); // NPCのターンを開始
+            }
+        }
+
+
+
+        async function npcTurn() {
+            if (gameOver || isProcessingEffect) return; // 処理中であれば関数を終了
+
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            if (npcEmojis.length === 0) {
+                checkSkipCondition();
+                return;
+            }
+
+            const noAvailableMove = board.every(cell => cell !== null) && sealedTiles.length > 0;
+            if (noAvailableMove) {
+                checkSkipCondition();
+                return;
+            }
+
+            const emptyIndices = board.map((cell, index) => cell === null ? index : null).filter(index => index !== null);
+            const availableIndices = emptyIndices.filter(index => !board[index] || board[index].player !== 'sealed');
+
+            if (availableIndices.length === 0) return;
+
+            const randomIndex = availableIndices[Math.floor(Math.random() * availableIndices.length)];
+            const randomEmojiIndex = Math.floor(Math.random() * npcEmojis.length);
+            const npcEmoji = npcEmojis[randomEmojiIndex];
+            board[randomIndex] = {
+                emoji: npcEmoji,
+                player: 'npc'
+            };
+            npcEmojis.splice(randomEmojiIndex, 1);
+            renderHand(npcEmojis, npcHand, 'npc');
+            renderBoard();
+            updateLog(`相手の${npcEmoji.emoji}が場に出た`);
+
+            isProcessingEffect = true; // エフェクト処理中フラグを立てる
+            await applyEffect(npcEmoji, randomIndex, 'npc'); // 効果適用が完了するのを待つ
+            isProcessingEffect = false; // エフェクト処理が終わったらフラグを解除
+
+            renderBoard();
+            checkWin();
+            if (!gameOver) {
+                // ターン切り替え処理
+                await endTurn(); // エフェクト処理がある場合は待機
+                playerTurn = true; // プレイヤーのターンへ切り替え
+                updateTurnIndicator();
+            }
+        }
+
+
+        async function npcTurn() {
+            if (gameOver || isProcessingEffect) return; // 処理中であれば関数を終了
+
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            if (npcEmojis.length === 0) {
+                checkSkipCondition();
+                return;
+            }
+
+            const noAvailableMove = board.every(cell => cell !== null) && sealedTiles.length > 0;
+            if (noAvailableMove) {
+                checkSkipCondition();
+                return;
+            }
+
+            const emptyIndices = board.map((cell, index) => cell === null ? index : null).filter(index => index !== null);
+            const availableIndices = emptyIndices.filter(index => !board[index] || board[index].player !== 'sealed');
+
+            if (availableIndices.length === 0) return;
+
+            // 1. NPCが勝てる場合は勝利する
+            for (const pattern of winPatterns) {
+                const [a, b, c] = pattern;
+                const positions = [board[a], board[b], board[c]];
+                if (positions.filter(p => p && p.player === 'npc').length === 2 && positions.filter(p => p === null).length === 1) {
+                    const winIndex = pattern[positions.indexOf(null)];
+                    if (!board[winIndex]) {
+                        const npcEmoji = npcEmojis[Math.floor(Math.random() * npcEmojis.length)];
+                        board[winIndex] = {
+                            emoji: npcEmoji,
+                            player: 'npc'
+                        };
+                        npcEmojis.splice(npcEmojis.indexOf(npcEmoji), 1);
+                        renderHand(npcEmojis, npcHand, 'npc');
+                        renderBoard();
+                        updateLog(`相手の${npcEmoji.emoji}が場に出た`);
+
+                        isProcessingEffect = true; // エフェクト処理中フラグを立てる
+                        await applyEffect(npcEmoji, winIndex, 'npc'); // 効果適用が完了するのを待つ
+                        isProcessingEffect = false; // エフェクト処理が終わったらフラグを解除
+
+                        renderBoard();
+                        checkWin();
+                        if (!gameOver) {
+                            await endTurn(); // ターンの終了処理を待機
+                            playerTurn = true; // プレイヤーのターンに切り替える
+                            updateTurnIndicator();
+                        }
+                        return;
+                    }
+                }
+            }
+
+            // 2. プレイヤーの勝利を妨害する
+            for (const pattern of winPatterns) {
+                const [a, b, c] = pattern;
+                const positions = [board[a], board[b], board[c]];
+                if (positions.filter(p => p && p.player === 'player').length === 2 && positions.filter(p => p === null).length === 1) {
+                    const blockIndex = pattern[positions.indexOf(null)];
+                    if (!board[blockIndex]) {
+                        const npcEmoji = npcEmojis[Math.floor(Math.random() * npcEmojis.length)];
+                        board[blockIndex] = {
+                            emoji: npcEmoji,
+                            player: 'npc'
+                        };
+                        npcEmojis.splice(npcEmojis.indexOf(npcEmoji), 1);
+                        renderHand(npcEmojis, npcHand, 'npc');
+                        renderBoard();
+                        updateLog(`相手の${npcEmoji.emoji}が場に出た`);
+
+                        isProcessingEffect = true; // エフェクト処理中フラグを立てる
+                        await applyEffect(npcEmoji, blockIndex, 'npc'); // 効果適用が完了するのを待つ
+                        isProcessingEffect = false; // エフェクト処理が終わったらフラグを解除
+
+                        renderBoard();
+                        checkWin();
+                        if (!gameOver) {
+                            await endTurn(); // ターンの終了処理を待機
+                            playerTurn = true; // プレイヤーのターンに切り替える
+                            updateTurnIndicator();
+                        }
+                        return;
+                    }
+                }
+            }
+
+            // 3. ランダムな位置に置く
+            const randomIndex = availableIndices[Math.floor(Math.random() * availableIndices.length)];
+            const randomEmojiIndex = Math.floor(Math.random() * npcEmojis.length);
+            const npcEmoji = npcEmojis[randomEmojiIndex];
+            board[randomIndex] = {
+                emoji: npcEmoji,
+                player: 'npc'
+            };
+            npcEmojis.splice(randomEmojiIndex, 1);
+            renderHand(npcEmojis, npcHand, 'npc');
+            renderBoard();
+            updateLog(`相手の${npcEmoji.emoji}が場に出た`);
+
+            isProcessingEffect = true; // エフェクト処理中フラグを立てる
+            await applyEffect(npcEmoji, randomIndex, 'npc'); // 効果適用が完了するのを待つ
+            isProcessingEffect = false; // エフェクト処理が終わったらフラグを解除
+
+            renderBoard();
+            checkWin();
+            if (!gameOver) {
+                await endTurn(); // ターンの終了処理を待機
+                playerTurn = true; // プレイヤーのターンに切り替える
+                updateTurnIndicator();
+            }
+        }
+
+        const winPatterns = [
+            [0, 1, 2],
+            [3, 4, 5],
+            [6, 7, 8],
+            [0, 3, 6],
+            [1, 4, 7],
+            [2, 5, 8],
+            [0, 4, 8],
+            [2, 4, 6]
+        ];
+
+        let skipCount = 0; // スキップ回数を追跡するための変数
+
+        function checkSkipCondition() {
+            const hasNoHand = (playerTurn && playerEmojis.length === 0) || (!playerTurn && npcEmojis.length === 0);
+            const isBoardFull = board.every(cell => cell !== null);
+            const hasSealedTiles = board.some(cell => cell && cell.player === 'sealed');
+
+            // スキップが必要な条件が成立する場合
+            if (hasNoHand || (isBoardFull && hasSealedTiles)) {
+                skipCount++; // スキップ回数をインクリメント
+
+                // スキップのログを更新
+                updateLog(playerTurn ? "あなたのターンをスキップしました" : "相手のターンをスキップしました");
+
+                // スキップが3回連続で発生した場合は引き分けにする
+                if (skipCount >= 3) {
+                    endGameWithDraw(); // 引き分け処理を呼び出す
+                    return; // これ以上処理を行わない
+                } else {
+                    // ターンを終了し、次のターンに切り替える
+                    endTurn();
+                    playerTurn = !playerTurn; // ターンを切り替える
+                    updateTurnIndicator();
+                    if (!gameOver) {
+                        if (!playerTurn) {
+                            setTimeout(npcTurn, 300); // NPCのターンを0.3秒後に開始
+                        }
+                    }
+                }
+            } else {
+                // スキップが発生しなかった場合、スキップカウントをリセットする
+                skipCount = 0;
+            }
+        }
+
+        function endGameWithDraw() {
+            message.textContent = "引き分け！";
+            updateLog("ゲーム終了：引き分け");
+            disableBoard();
+            restartButton.style.display = 'block';
+            forfeitButton.style.display = 'none';
+            gameOver = true;
+            resetScore(); // スコアリセットなどの引き分け時の処理
+        }
+
+
+
+        function checkWin() {
+            let playerWins = false;
+            let npcWins = false;
+            for (const pattern of winPatterns) {
+                const [a, b, c] = pattern;
+                if (board[a] && board[a].emoji && board[b] && board[b].emoji && board[c] && board[c].emoji) {
+                    if (board[a].player === board[b].player && board[a].player === board[c].player) {
+                        if (board[a].player === 'player') playerWins = true;
+                        if (board[a].player === 'npc') npcWins = true;
+                    }
+                }
+            }
+
+            if (playerWins) {
+                message.textContent = "プレイヤーの勝ち！";
+                updateLog("ゲーム終了：あなたの勝利");
+                disableBoard();
+                restartButton.style.display = 'block';
+                forfeitButton.style.display = 'none';
+                gameOver = true;
+                updateScore(); // プレイヤーの勝利時にのみスコアを更新
+            } else if (npcWins) {
+                message.textContent = "NPCの勝ち！";
+                updateLog("ゲーム終了：NPCの勝利");
+                disableBoard();
+                restartButton.style.display = 'block';
+                forfeitButton.style.display = 'none';
+                gameOver = true;
+                resetScore();
+            }
+        }
+
+        function disableBoard() {
+            const gridItems = document.querySelectorAll('.grid-item');
+            gridItems.forEach(item => item.onclick = null);
+        }
+        let effectQueue = []; // 効果を待機するためのキュー
+        let graveyard = []; // 墓地を追加
+        function applyEffect(piece, index, player) {
+            return new Promise((resolve) => {
+                let additionalEffects = false; // 連鎖効果をトリガーするフラグ
+                switch (piece.effect) {
+                    case "heal_ally":
+                        healAlly(index, player);
+                        break;
+                    case "revengeEffect":
+                        if (piece.hp <= 0) {
+                            revengeEffect(piece, index, player);
+                            additionalEffects = true; // 連鎖効果をトリガー
+                        }
+                        break;
+                    case "damage_random_enemy":
+                        damageRandomEnemy(player);
+                        break;
+                    case "damage_self_enemy":
+                        damageSelfAndEnemy(index, player);
+                        break;
+                    case "swap_position":
+                        swapPosition(index, player);
+                        break;
+                    case "damage_adjacent_enemy":
+                        damageAdjacentEnemy(index, player);
+                        break;
+                    case "damage_column_enemy":
+                        damageColumnEnemy(index, player);
+                        break;
+                    case "damage_row_enemy":
+                        damageRowEnemy(index, player);
+                        break;
+                    case "damage_heal":
+                        damageHeal(index, player);
+                        break;
+                    case "steal_hand":
+                        stealHand(player);
+                        break;
+                    case "heal_every_turn":
+                        healEveryTurn(index, player);
+                        break;
+                    case "add_gun":
+                        addGun(index, player);
+                        break;
+                    case "damage_move_enemy":
+                        damageMoveEnemy(index, player);
+                        break;
+                    case "damage_heal_self":
+                        damageHealSelf(index, player);
+                        break;
+                    case "explode_on_death":
+                        if (piece.hp <= 0) {
+                            explodeOnDeath(index, player);
+                            additionalEffects = true; // 連鎖効果をトリガー
+                        }
+                        break;
+                    case "damage_all_around":
+                        damageAllAround(index, player);
+                        break;
+                    case "heal_all_friends":
+                        healAllFriends(index, player);
+                        break;
+                    case "seal_random":
+                        sealRandom(player);
+                        break;
+                    case "damage_all_seal":
+                        damageAllSeal(index, player);
+                        break;
+                    case "return_enemy_hand":
+                        returnEnemyHand(index, player);
+                        break;
+                    case "damage_adjacent_all_enemy":
+                        damageAdjacentAllEnemy(index, player);
+                        break;
+                    case "add_random_hand_both":
+                        addRandomHandBoth();
+                        break;
+                    default:
+                        break;
+                }
+
+                // 効果適用後に破壊されたコマをチェックする
+                checkForDeadPieces();
+
+                // 連鎖効果が発生した場合、再度applyEffectを呼び出す
+                if (additionalEffects) {
+                    setTimeout(() => applyEffect(piece, index, player), 500);
+                }
+
+                resolve(); // 効果処理完了時にPromiseを解決
+            });
+        }
+
+
+        function processEffectQueue() {
+            while (effectQueue.length > 0) {
+                const effect = effectQueue.shift();
+                if (effect.type === "revengeEffect") {
+                    revengeEffect(effect.piece, effect.index, effect.player);
+                } else if (effect.type === "explode_on_death") {
+                    explodeOnDeath(effect.index, effect.player);
+                }
+            }
+        }
+
+        function moveToGraveyard(piece, index) {
+            setTimeout(() => {
+                graveyard.push(piece);
+                board[index] = null; // ピースを場から取り除く
+                renderBoard(); // ボードを再描画
+            }, 200); // 0.2秒の遅延
+        }
+
+
+        function checkForDeadPieces() {
+            let effectsToApply = [];
+            // 破壊されるべきピースを「墓地」に移動
+            board.forEach((cell, i) => {
+                if (cell && cell.emoji.hp <= 0) {
+                    const destroyedPiece = board[i];
+                    const originalEmoji = destroyedPiece.emoji.emoji;
+                    destroyedPiece.emoji.emoji = '💥'; // ダメージエフェクトを設定
+                    renderBoard();
+
+                    // 効果の適用を予約
+                    switch (destroyedPiece.emoji.effect) {
+                        case "revengeEffect":
+                            effectsToApply.push(() => revengeEffect(destroyedPiece, destroyedPiece.originalIndex, destroyedPiece.player));
+                            break;
+                        case "explode_on_death":
+                            effectsToApply.push(() => explodeOnDeath(destroyedPiece.originalIndex, destroyedPiece.player));
+                            break;
+                            // 他の効果も追加する場合はここに書く
+                    }
+
+                    setTimeout(() => {
+                        // エフェクトの表示が終わった後にピースを墓地に移動
+                        moveToGraveyard(destroyedPiece, i);
+
+                        // 効果の適用を行う
+                        effectsToApply.forEach(effect => effect());
+                    }, 500); // 0.5秒の遅延（調整可能）
+                }
+            });
+        }
+
+
+        // ハチの効果
+        function revengeEffect(piece, index, player) {
+            // 既に発動済みのピースかどうかをチェック
+            if (piece.isEffectTriggered) return;
+
+            const enemyPieces = board.map((cell, i) => (cell && cell.player !== player && cell.player !== 'sealed') ? i : null).filter(i => i !== null);
+
+            if (enemyPieces.length > 0) {
+                const targetIndex = enemyPieces[Math.floor(Math.random() * enemyPieces.length)];
+                const targetPiece = board[targetIndex];
+
+                if (targetPiece && targetPiece.emoji) {
+                    const originalEmoji = targetPiece.emoji.emoji;
+                    const owner = targetPiece.player;
+                    updateLog(`🐝の効果が発動した`);
+                    targetPiece.emoji.hp -= 3;
+
+                    targetPiece.emoji.emoji = '💥';
+                    renderBoard();
+
+                    setTimeout(() => {
+                        if (targetPiece && targetPiece.emoji) {
+                            targetPiece.emoji.emoji = originalEmoji;
+                            renderBoard();
+
+                            if (targetPiece.emoji.hp <= 0) {
+                                moveToGraveyard(targetPiece, targetIndex);
+                                updateLog(`${owner === 'player' ? 'あなたの' : '相手の'}${originalEmoji}が破壊された`);
+
+                                // もし破壊されたピースがハチなら、そのハチの効果も発動させる
+                                if (targetPiece.emoji.effect === 'revengeEffect' && !targetPiece.isEffectTriggered) {
+                                    applyEffect(targetPiece.emoji, targetIndex, owner);
+                                }
+
+                                // 他の効果（爆弾など）がある場合も発動させる
+                                if (targetPiece.emoji.effect === 'explode_on_death' && !targetPiece.isEffectTriggered) {
+                                    applyEffect(targetPiece.emoji, targetIndex, owner);
+                                }
+                            }
+                        }
+                    }, 500);
+
+                    updateLog(`${owner === 'player' ? 'あなたの' : '相手の'}${originalEmoji}が3点のダメージを受けた`);
+
+                    // 効果が発動済みであることを示すフラグを立てる
+                    piece.isEffectTriggered = true;
+                }
+            }
+        }
+
+
+        // 爆弾の効果
+        function explodeOnDeath(index, player) {
+            const piece = board[index];
+            if (piece && piece.emoji.name === "爆弾") {
+                const neighbors = [];
+                const row = Math.floor(index / 3);
+                const col = index % 3;
+
+                if (row > 0) neighbors.push(index - 3);
+                if (row < 2) neighbors.push(index + 3);
+                if (col > 0) neighbors.push(index - 1);
+                if (col < 2) neighbors.push(index + 1);
+                if (row > 0 && col > 0) neighbors.push(index - 4);
+                if (row > 0 && col < 2) neighbors.push(index - 2);
+                if (row < 2 && col > 0) neighbors.push(index + 2);
+                if (row < 2 && col < 2) neighbors.push(index + 4);
+
+                updateLog(`💣が爆発した`);
+
+                const damagePromises = neighbors.map(i => {
+                    return new Promise((resolve) => {
+                        if (i >= 0 && i < board.length && board[i]) {
+                            const originalEmoji = board[i].emoji.emoji;
+                            const owner = board[i].player;
+
+                            board[i].emoji.hp -= 4;
+                            board[i].emoji.emoji = '💥';
+                            renderBoard();
+
+                            setTimeout(() => {
+                                if (board[i]) {
+                                    board[i].emoji.emoji = originalEmoji;
+                                    renderBoard();
+                                    if (board[i].emoji.hp <= 0) {
+                                        // isEffectTriggered が未発動である場合のみ効果を適用する
+                                        if (!board[i].isEffectTriggered) {
+                                            moveToGraveyard(board[i], i);
+                                            board[i].isEffectTriggered = true;
+                                            updateLog(`${owner === 'player' ? 'あなたの' : '相手の'}${originalEmoji}が破壊された`);
+                                            // 連鎖効果をチェック
+                                            if (board[i].emoji.effect === 'revengeEffect' || board[i].emoji.effect === 'explode_on_death') {
+                                                applyEffect(board[i].emoji, i, owner).then(resolve); // 効果適用後にresolveを呼ぶ
+                                            } else {
+                                                resolve(); // 効果がない場合もresolveを呼ぶ
+                                            }
+                                        } else {
+                                            resolve(); // 既に効果が発動済みの場合もresolveを呼ぶ
+                                        }
+                                    } else {
+                                        resolve(); // ダメージだけの場合もresolveを呼ぶ
+                                    }
+                                } else {
+                                    resolve(); // セルが存在しない場合もresolveを呼ぶ
+                                }
+                            }, 500);
+                            updateLog(`${owner === 'player' ? 'あなたの' : '相手の'}${originalEmoji}が4点のダメージを受けた`);
+                        } else {
+                            resolve(); // 範囲外のセルもresolveを呼ぶ
+                        }
+                    });
+                });
+
+                // 全てのダメージ処理が終わった後に爆弾のセルをクリアする
+                Promise.all(damagePromises).then(() => {
+                    // 爆弾自身を場から取り除く
+                    board[index] = null;
+                    renderBoard();
+                });
+            }
+        }
+
+
+        //ウサギの効果
+        function healAlly(index, player) {
+            const allies = board.map((cell, i) => cell && cell.player === player && i !== index ? i : null).filter(i => i !== null);
+            if (allies.length > 0) {
+                const targetIndex = allies[Math.floor(Math.random() * allies.length)];
+                board[targetIndex].emoji.hp += 1;
+                const originalEmoji = board[targetIndex].emoji.emoji; // 元の絵文字を保存
+                board[targetIndex].emoji.emoji = '❤️‍🩹';
+                renderBoard();
+                updateLog(`${player === 'player' ? 'あなたの' : '相手の'}${originalEmoji}のHPが1回復した`);
+                setTimeout(() => {
+                    board[targetIndex].emoji.emoji = originalEmoji; // 元の絵文字に戻す
+                    renderBoard();
+                }, 500);
+            }
+        }
+        //魔法使いの効果
+        function damageRandomEnemy(player) {
+            const enemyPieces = board
+                .map((cell, index) => (cell && cell.player !== player && cell.player !== 'sealed' ? index : null))
+                .filter(index => index !== null); // 修正点: `cell.player !== 'sealed'` を追加
+            if (enemyPieces.length > 0) {
+                const randomIndex = enemyPieces[Math.floor(Math.random() * enemyPieces.length)];
+                const target = board[randomIndex].emoji;
+                // ダメージを与える
+                target.hp -= 2;
+                // ダメージエフェクト（💥）を設定
+                const originalEmoji = target.emoji;
+                target.emoji = '💥';
+                renderBoard();
+                setTimeout(() => {
+                    target.emoji = originalEmoji; // 元の絵文字に戻す
+                    renderBoard();
+                    if (target.hp <= 0) {
+                        moveToGraveyard(target, randomIndex); // コマを取り除く
+                        updateLog(`${originalEmoji}が破壊された`);
+                    }
+                }, 500); // エフェクト表示後に元の絵文字に戻す時間を設定
+                updateLog(`${player === 'player' ? '相手の' : 'あなたの'}${originalEmoji}が2点のダメージを受けた`);
+            }
+        }
+        // 拳銃の効果
+        async function damageSelfAndEnemy(index, player) {
+            // 0.5秒の遅延を追加
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            const enemyPieces = board
+                .map((cell, index) => (cell && cell.player !== player && cell.player !== 'sealed' ? index : null))
+                .filter(index => index !== null); // 修正点: `cell.player !== 'sealed'` を追加
+
+            if (enemyPieces.length > 0) {
+                const randomIndex = enemyPieces[Math.floor(Math.random() * enemyPieces.length)];
+                const targetEnemy = board[randomIndex].emoji;
+                const self = board[index].emoji;
+                // 自分と相手にダメージを与える
+                targetEnemy.hp -= 5;
+                self.hp -= 5;
+                // ダメージエフェクト（💥）を設定
+                const originalEnemyEmoji = targetEnemy.emoji;
+                const originalSelfEmoji = self.emoji;
+                targetEnemy.emoji = '💥';
+                self.emoji = '💥';
+                renderBoard();
+                setTimeout(() => {
+                    targetEnemy.emoji = originalEnemyEmoji; // 元の絵文字に戻す
+                    self.emoji = originalSelfEmoji; // 元の絵文字に戻す
+                    renderBoard();
+                    if (targetEnemy.hp <= 0) {
+                        moveToGraveyard(targetEnemy, randomIndex); // 正しいオブジェクトとインデックスを渡す
+                        updateLog(`${originalEnemyEmoji}が破壊された`);
+                    }
+                    if (self.hp <= 0) {
+                        moveToGraveyard(self, index); // selfを取り除く
+                        updateLog(`${originalSelfEmoji}が破壊された`);
+                    }
+                }, 500); // エフェクト表示後に元の絵文字に戻す時間を設定
+                updateLog(`${player === 'player' ? '相手の' : 'あなたの'}${originalEnemyEmoji}が5点のダメージを受けた`);
+                updateLog(`${player === 'player' ? 'あなたの' : '相手の'}${originalSelfEmoji}が5点のダメージを受けた`);
+            }
+        }
+
+        //猿の効果
+        function swapPosition(index, player) {
+            const boardSize = 3; // 3x3のボードを仮定
+            const adjacentIndices = [];
+            // 現在の猿の位置の行と列を計算
+            const row = Math.floor(index / boardSize);
+            const col = index % boardSize;
+            // 上下左右と斜めの位置をチェックして隣接する位置を追加
+            if (row > 0) adjacentIndices.push(index - boardSize); // 上
+            if (row < boardSize - 1) adjacentIndices.push(index + boardSize); // 下
+            if (col > 0) adjacentIndices.push(index - 1); // 左
+            if (col < boardSize - 1) adjacentIndices.push(index + 1); // 右
+            if (row > 0 && col > 0) adjacentIndices.push(index - boardSize - 1); // 左上
+            if (row > 0 && col < boardSize - 1) adjacentIndices.push(index - boardSize + 1); // 右上
+            if (row < boardSize - 1 && col > 0) adjacentIndices.push(index + boardSize - 1); // 左下
+            if (row < boardSize - 1 && col < boardSize - 1) adjacentIndices.push(index + boardSize + 1); // 右下
+            // 隣接するコマを探し、封印マスを除外する
+            const swapCandidates = adjacentIndices.filter(i => board[i] && board[i].player !== 'sealed');
+            if (swapCandidates.length > 0) {
+                // ランダムに隣接するコマを選ぶ
+                const swapIndex = swapCandidates[Math.floor(Math.random() * swapCandidates.length)];
+                // 猿の位置と選ばれたコマの位置を交換する
+                [board[index], board[swapIndex]] = [board[swapIndex], board[index]];
+                updateLog(`${player === 'player' ? 'あなたの' : '相手の'}${board[swapIndex].emoji.emoji}と猿が位置を交換した`);
+                renderBoard(); // ボードを再描画して変更を反映
+            }
+        }
+        // ワニの効果
+        function damageColumnEnemy(index, player) {
+            const column = index % 3;
+            const columnIndices = [column, column + 3, column + 6];
+            const enemies = columnIndices
+                .filter(i => board[i] && board[i].player !== player && board[i].player !== 'sealed'); // 修正点: `board[i].player !== 'sealed'` を追加
+
+            if (enemies.length > 0) {
+                const targetIndex = enemies[Math.floor(Math.random() * enemies.length)]; // 敵をランダムに選ぶ
+                const target = board[targetIndex].emoji;
+                target.hp -= 2;
+                // ダメージエフェクト（💥）を設定
+                const originalEmoji = target.emoji;
+                target.emoji = '💥';
+                renderBoard();
+                setTimeout(() => {
+                    target.emoji = originalEmoji; // 元の絵文字に戻す
+                    renderBoard();
+                    if (target.hp <= 0) {
+                        moveToGraveyard(target, targetIndex); // コマを取り除く
+                        updateLog(`${originalEmoji}が破壊された`);
+                    }
+                }, 500); // エフェクト表示後に元の絵文字に戻す時間を設定
+                updateLog(`${player === 'player' ? '相手の' : 'あなたの'}${originalEmoji}が2点のダメージを受けた`);
+            }
+        }
+
+        // クマの効果 
+        function damageRowEnemy(index, player) {
+            const row = Math.floor(index / 3);
+            const rowIndices = [row * 3, row * 3 + 1, row * 3 + 2];
+            const enemies = rowIndices
+                .filter(i => board[i] && board[i].player !== player && board[i].player !== 'sealed'); // 修正点: `board[i].player !== 'sealed'` を追加
+
+            if (enemies.length > 0) {
+                const targetIndex = enemies[Math.floor(Math.random() * enemies.length)];
+                const target = board[targetIndex].emoji;
+                target.hp -= 2;
+                // ダメージエフェクト（💥）を設定
+                const originalEmoji = target.emoji;
+                target.emoji = '💥';
+                renderBoard();
+                setTimeout(() => {
+                    target.emoji = originalEmoji; // 元の絵文字に戻す
+                    renderBoard();
+                    if (target.hp <= 0) {
+                        moveToGraveyard(target, targetIndex); // コマを取り除く
+                        updateLog(`${originalEmoji}が破壊された`);
+                    }
+                }, 500); // エフェクト表示後に元の絵文字に戻す時間を設定
+                updateLog(`${player === 'player' ? '相手の' : 'あなたの'}${originalEmoji}が2点のダメージを受けた`);
+            }
+        }
+
+        // タコの効果
+        function damageHeal(index, player) {
+            const boardSize = 3; // 3x3のボードを仮定
+            const neighbors = [];
+            // 現在のコマの位置の行と列を計算
+            const row = Math.floor(index / boardSize);
+            const col = index % boardSize;
+            // 上下左右と斜めの位置をチェックして隣接しているかを確認
+            if (row > 0) neighbors.push(index - boardSize); // 上
+            if (row < boardSize - 1) neighbors.push(index + boardSize); // 下
+            if (col > 0) neighbors.push(index - 1); // 左
+            if (col < boardSize - 1) neighbors.push(index + 1); // 右
+            if (row > 0 && col > 0) neighbors.push(index - boardSize - 1); // 左上
+            if (row > 0 && col < boardSize - 1) neighbors.push(index - boardSize + 1); // 右上
+            if (row < boardSize - 1 && col > 0) neighbors.push(index + boardSize - 1); // 左下
+            if (row < boardSize - 1 && col < boardSize - 1) neighbors.push(index + boardSize + 1); // 右下
+
+            const validTargets = neighbors.filter(i => board[i] && board[i].player !== 'sealed'); // 修正点: `board[i].player !== 'sealed'` を追加
+            if (validTargets.length > 0) {
+                const targetIndex = validTargets[Math.floor(Math.random() * validTargets.length)];
+                const targetEmoji = board[targetIndex].emoji;
+                const playerEmoji = board[index].emoji;
+                const originalTargetEmoji = targetEmoji.emoji; // 元の絵文字を保存
+                const originalPlayerEmoji = playerEmoji.emoji; // 元の絵文字を保存
+                const targetOwner = board[targetIndex].player; // ターゲットコマの所有者を記録
+                // ダメージと回復を適用
+                targetEmoji.hp -= 1;
+                playerEmoji.hp += 1; // タコのHPを回復
+                // ダメージエフェクトと回復エフェクトを設定
+                targetEmoji.emoji = '💥';
+                playerEmoji.emoji = '❤️‍🩹';
+                renderBoard();
+                setTimeout(() => {
+                    targetEmoji.emoji = originalTargetEmoji; // 元の絵文字に戻す
+                    playerEmoji.emoji = originalPlayerEmoji; // 元の絵文字に戻す
+                    renderBoard();
+                    // HPが0以下になった場合はそのコマを取り除く
+                    if (targetEmoji.hp <= 0) {
+                        moveToGraveyard(targetEmoji, targetIndex);
+                        updateLog(`${targetOwner === 'player' ? 'あなたの' : '相手の'}${originalTargetEmoji}が破壊された`);
+                    }
+                }, 500);
+                // ダメージと回復のログを正しく表示
+                updateLog(`${targetOwner === 'player' ? 'あなたの' : '相手の'}${originalTargetEmoji}が1点のダメージを受けた`);
+                updateLog(`${player === 'player' ? 'あなたの' : '相手の'}🐙のHPが1回復した`);
+            }
+            renderBoard(); // ボードを再描画して変更を反映
+        }
+
+        //忍者の効果
+        function stealHand(player) {
+            if (player === 'player' && npcEmojis.length > 0) {
+                // プレイヤーが忍者を使った場合
+                const stolenIndex = Math.floor(Math.random() * npcEmojis.length);
+                const stolenEmoji = npcEmojis[stolenIndex];
+                playerEmojis.push(stolenEmoji);
+                npcEmojis.splice(stolenIndex, 1);
+                renderHand(playerEmojis, playerHand, 'player');
+                renderHand(npcEmojis, npcHand, 'npc');
+                updateLog(`あなたの手札に${stolenEmoji.emoji}が加わった`);
+            } else if (player === 'npc' && playerEmojis.length > 0) {
+                // NPCが忍者を使った場合
+                const stolenIndex = Math.floor(Math.random() * playerEmojis.length);
+                const stolenEmoji = playerEmojis[stolenIndex];
+                npcEmojis.push(stolenEmoji);
+                playerEmojis.splice(stolenIndex, 1);
+                renderHand(playerEmojis, playerHand, 'player');
+                renderHand(npcEmojis, npcHand, 'npc');
+                updateLog(`相手の手札に${stolenEmoji.emoji}が加わった`);
+            }
+        }
+        //警官の効果
+        function addGun(index, player) {
+            // プレイヤーが警官を使った場合
+            if (player === 'player') {
+                const gunIndex = playerEmojis.findIndex(emoji => emoji.name === '拳銃');
+                const emptyIndices = board.map((cell, index) => cell === null ? index : null).filter(index => index !== null);
+                if (gunIndex !== -1 && emptyIndices.length > 0) {
+                    const gun = playerEmojis.splice(gunIndex, 1)[0];
+                    const randomIndex = emptyIndices[Math.floor(Math.random() * emptyIndices.length)];
+                    board[randomIndex] = {
+                        emoji: gun,
+                        player: player
+                    };
+                    renderHand(playerEmojis, playerHand, 'player');
+                    renderBoard();
+                    updateLog(`あなたの${gun.emoji}が場に出た`);
+                    // Trigger gun's effect immediately after placing
+                    setTimeout(() => {
+                        if (checkWin()) return;
+                        applyEffect(gun, randomIndex, player);
+                    }, 500);
+                } else if (gunIndex === -1) {
+                    const newGun = {
+                        emoji: "🔫",
+                        name: "拳銃",
+                        rank: "★",
+                        hp: 1,
+                        effect: "damage_self_enemy",
+                        maxHp: 1
+                    };
+                    playerEmojis.push(newGun);
+                    renderHand(playerEmojis, playerHand, 'player');
+                    updateLog(`あなたの手札に🔫が加わった`);
+                }
+            }
+            // NPCが警官を使った場合
+            else if (player === 'npc') {
+                const gunIndex = npcEmojis.findIndex(emoji => emoji.name === '拳銃');
+                const emptyIndices = board.map((cell, index) => cell === null ? index : null).filter(index => index !== null);
+                if (gunIndex !== -1 && emptyIndices.length > 0) {
+                    const gun = npcEmojis.splice(gunIndex, 1)[0];
+                    const randomIndex = emptyIndices[Math.floor(Math.random() * emptyIndices.length)];
+                    board[randomIndex] = {
+                        emoji: gun,
+                        player: player
+                    };
+                    renderHand(npcEmojis, npcHand, 'npc');
+                    renderBoard();
+                    updateLog(`相手の${gun.emoji}が場に出た`);
+                    // Trigger gun's effect immediately after placing
+                    setTimeout(() => {
+                        if (checkWin()) return;
+                        applyEffect(gun, randomIndex, player);
+                    }, 500);
+                } else if (gunIndex === -1) {
+                    const newGun = {
+                        emoji: "🔫",
+                        name: "拳銃",
+                        rank: "★",
+                        hp: 1,
+                        effect: "damage_self_enemy",
+                        maxHp: 1
+                    };
+                    npcEmojis.push(newGun);
+                    renderHand(npcEmojis, npcHand, 'npc');
+                    updateLog(`相手の手札に🔫が加わった`);
+                }
+            }
+        }
+        // 天狗の効果
+        function damageMoveEnemy(index, player) {
+            const enemyPieces = board.map((cell, index) => (cell && cell.player !== player && cell.player !== 'sealed') ? index : null).filter(index => index !== null);
+            if (enemyPieces.length > 0) {
+                const randomIndex = enemyPieces[Math.floor(Math.random() * enemyPieces.length)];
+                if (board[randomIndex] && board[randomIndex].emoji) { // チェックを追加
+                    const targetEmoji = board[randomIndex].emoji;
+                    const originalEmoji = targetEmoji.emoji; // 元の絵文字を保存
+                    const targetOwner = board[randomIndex].player; // ターゲットコマの所有者を記録
+                    // ダメージを与える
+                    targetEmoji.hp -= 2;
+                    targetEmoji.emoji = '💥'; // ダメージエフェクトを設定
+                    renderBoard();
+                    setTimeout(() => {
+                        if (board[randomIndex] && board[randomIndex].emoji) { // チェックを追加
+                            targetEmoji.emoji = originalEmoji; // 元の絵文字に戻す
+                            renderBoard();
+                            if (targetEmoji.hp > 0) {
+                                const emptyIndices = board.map((cell, index) => cell === null ? index : null).filter(index => index !== null);
+                                if (emptyIndices.length > 0) {
+                                    const moveToIndex = emptyIndices[Math.floor(Math.random() * emptyIndices.length)];
+                                    board[moveToIndex] = board[randomIndex];
+                                    board[randomIndex] = null;
+                                    updateLog(`${targetOwner === 'player' ? 'あなたの' : '相手の'}${board[moveToIndex].emoji.emoji}が移動した`);
+                                    renderBoard();
+                                }
+                            } else {
+                                moveToGraveyard(targetEmoji, randomIndex);
+                                updateLog(`${targetOwner === 'player' ? 'あなたの' : '相手の'}${originalEmoji}が破壊された`);
+                            }
+                        }
+                    }, 500);
+                    updateLog(`${targetOwner === 'player' ? 'あなたの' : '相手の'}${originalEmoji}が2点のダメージを受けた`);
+                }
+            }
+        }
+        // 吸血鬼の効果
+        function damageHealSelf(index, player) {
+            const boardSize = 3; // 3x3のボードを仮定
+            const neighbors = [];
+            // 現在のコマの位置の行と列を計算
+            const row = Math.floor(index / boardSize);
+            const col = index % boardSize;
+            // 上下左右と斜めの位置をチェックして隣接しているかを確認
+            if (row > 0) neighbors.push(index - boardSize); // 上
+            if (row < boardSize - 1) neighbors.push(index + boardSize); // 下
+            if (col > 0) neighbors.push(index - 1); // 左
+            if (col < boardSize - 1) neighbors.push(index + 1); // 右
+            if (row > 0 && col > 0) neighbors.push(index - boardSize - 1); // 左上
+            if (row > 0 && col < boardSize - 1) neighbors.push(index - boardSize + 1); // 右上
+            if (row < boardSize - 1 && col > 0) neighbors.push(index + boardSize - 1); // 左下
+            if (row < boardSize - 1 && col < boardSize - 1) neighbors.push(index + boardSize + 1); // 右下
+
+            const validTargets = neighbors.filter(i => board[i] && board[i].player !== player && board[i].player !== 'sealed'); // 修正点: `board[i].player !== 'sealed'` を追加
+            if (validTargets.length > 0) {
+                const targetIndex = validTargets[Math.floor(Math.random() * validTargets.length)];
+                const targetEmoji = board[targetIndex].emoji;
+                const playerEmoji = board[index].emoji;
+                // ダメージと回復を適用
+                targetEmoji.hp -= 2;
+                playerEmoji.hp += 2; // 吸血鬼のHPを回復
+                // ダメージエフェクトと回復エフェクトを設定
+                const originalTargetEmoji = targetEmoji.emoji; // 元の絵文字を保存
+                const originalPlayerEmoji = playerEmoji.emoji; // 元の絵文字を保存
+                targetEmoji.emoji = '💥';
+                playerEmoji.emoji = '❤️‍🩹';
+                renderBoard();
+                setTimeout(() => {
+                    targetEmoji.emoji = originalTargetEmoji; // 元の絵文字に戻す
+                    playerEmoji.emoji = originalPlayerEmoji; // 元の絵文字に戻す
+                    renderBoard();
+                    if (targetEmoji.hp <= 0) {
+                        moveToGraveyard(targetEmoji, targetIndex); // 破壊されたコマを取り除く
+                        updateLog(`${originalTargetEmoji}が破壊された`);
+                    }
+                }, 500);
+                updateLog(`${player === 'player' ? '相手の' : 'あなたの'}${originalTargetEmoji}が2点のダメージを受けた`);
+                updateLog(`${player === 'player' ? 'あなたの' : '相手の'}吸血鬼のHPが2回復した`);
+            }
+        }
+
+
+        // ライオンの効果
+        function damageAllAround(index, player) {
+            const boardSize = 3; // 3x3のボードを仮定
+            const neighbors = [];
+            // 現在のコマの位置の行と列を計算
+            const row = Math.floor(index / boardSize);
+            const col = index % boardSize;
+            // 上下左右と斜めの位置をチェックして隣接しているかを確認
+            if (row > 0) neighbors.push(index - boardSize); // 上
+            if (row < boardSize - 1) neighbors.push(index + boardSize); // 下
+            if (col > 0) neighbors.push(index - 1); // 左
+            if (col < boardSize - 1) neighbors.push(index + 1); // 右
+            if (row > 0 && col > 0) neighbors.push(index - boardSize - 1); // 左上
+            if (row > 0 && col < boardSize - 1) neighbors.push(index - boardSize + 1); // 右上
+            if (row < boardSize - 1 && col > 0) neighbors.push(index + boardSize - 1); // 左下
+            if (row < boardSize - 1 && col < boardSize - 1) neighbors.push(index + boardSize + 1); // 右下
+            neighbors.forEach(i => {
+                if (board[i]) {
+                    const targetEmoji = board[i].emoji;
+                    const originalEmoji = targetEmoji.emoji; // 元の絵文字を保存
+                    const owner = board[i].player; // コマの所有者を記録
+                    // ダメージを与える
+                    targetEmoji.hp -= 1;
+                    targetEmoji.emoji = '💥'; // ダメージエフェクトを設定
+                    renderBoard();
+                    setTimeout(() => {
+                        if (board[i]) { // コマがまだ存在する場合のみ処理を続行
+                            targetEmoji.emoji = originalEmoji; // 元の絵文字に戻す
+                            renderBoard();
+                            // HPが0以下になった場合はそのコマを取り除く
+                            if (targetEmoji.hp <= 0) {
+                                moveToGraveyard(targetEmoji, i);
+                                updateLog(`${owner === 'player' ? 'あなたの' : '相手の'}${originalEmoji}が破壊された`);
+                            }
+                        }
+                    }, 500); // エフェクト表示後に元の絵文字に戻す時間を設定
+                    // ダメージを受けたログを正しく表示
+                    updateLog(`${owner === 'player' ? 'あなたの' : '相手の'}${originalEmoji}が1点のダメージを受けた`);
+                }
+            });
+        }
+        //ユニコーンの効果
+        function healAllFriends(index, player) {
+            const allies = board.map((cell, i) => cell && cell.player === player && i !== index ? i : null).filter(i => i !== null);
+            if (allies.length > 0) {
+                allies.forEach(i => {
+                    if (board[i] && board[i].emoji) {
+                        const originalEmoji = board[i].emoji.emoji; // 元の絵文字を保存
+                        board[i].emoji.hp += 1;
+                        board[i].emoji.emoji = '❤️‍🩹';
+                        renderBoard();
+                        updateLog(`${player === 'player' ? 'あなたの' : '相手の'}${originalEmoji}のHPが1回復した`);
+
+                        // 回復エフェクトが完了するまで待ってから処理を続行
+                        setTimeout(() => {
+                            if (board[i] && board[i].emoji) {
+                                board[i].emoji.emoji = originalEmoji; // 元の絵文字に戻す
+                                renderBoard();
+                            }
+                        }, 500);
+                    }
+                });
+            } else {
+                const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
+                if (player === 'player') {
+                    playerEmojis.push(randomEmoji);
+                    renderHand(playerEmojis, playerHand, 'player');
+                    updateLog(`あなたの手札に${randomEmoji.emoji}が加わった`);
+                } else {
+                    npcEmojis.push(randomEmoji);
+                    renderHand(npcEmojis, npcHand, 'npc');
+                    updateLog(`相手の手札に${randomEmoji.emoji}が加わった`);
+                }
+            }
+        }
+        //悪魔の効果
+        function sealRandom(player) {
+            const emptyIndices = board.map((cell, index) => cell === null ? index : null).filter(index => index !== null);
+            if (emptyIndices.length > 0) {
+                const randomIndex = emptyIndices[Math.floor(Math.random() * emptyIndices.length)];
+                // 封印を設定する際に、封印を発動したプレイヤーを記録
+                board[randomIndex] = {
+                    emoji: {
+                        emoji: "❌",
+                        name: "封印",
+                        hp: 99,
+                        effect: "none"
+                    },
+                    player: 'sealed',
+                    sealPlayer: player
+                };
+                sealedTiles.push(randomIndex);
+                updateLog(`${player === 'player' ? '相手のターン終了時まで' : 'あなたのターン終了時まで'}マスが封印された`);
+            }
+        }
+
+        function updateSealStatus() {
+            // 現在のターンプレイヤーを基に封印を解除する条件を設定
+            const currentPlayer = playerTurn ? 'player' : 'npc';
+            for (let i = sealedTiles.length - 1; i >= 0; i--) {
+                const tileIndex = sealedTiles[i];
+                if (board[tileIndex] && board[tileIndex].player === 'sealed') {
+                    // 封印を発動したプレイヤーと現在のターンプレイヤーを比較し、一致しない場合のみ解除
+                    if (board[tileIndex].sealPlayer === currentPlayer) {
+                        board[tileIndex] = null; // 封印解除
+                        sealedTiles.splice(i, 1); // 封印リストから削除
+                        updateLog("封印が解除されました");
+                    }
+
+                }
+            }
+            renderBoard(); // 封印状態の更新後にボードを再レンダリング
+        }
+
+        // ドラゴンの効果
+        function damageAllSeal(index, player) {
+            let dragonEffectTriggered = false; // ドラゴン効果トリガーをリセット
+            const damagePromises = []; // 非同期処理を管理するための配列
+
+            board.forEach((cell, i) => {
+                if (i !== index && cell) {
+                    const targetEmoji = cell.emoji;
+                    const originalEmoji = targetEmoji.emoji; // 元の絵文字を保存
+                    const owner = cell.player; // コマの所有者を記録
+
+                    // ダメージを与える
+                    targetEmoji.hp -= 3;
+                    targetEmoji.emoji = '💥'; // ダメージエフェクトを設定
+                    renderBoard();
+                    updateLog(`${owner === 'player' ? 'あなたの' : '相手の'}${originalEmoji}が3点のダメージを受けた`);
+
+                    // 非同期処理としてダメージエフェクトを戻す
+                    const damagePromise = new Promise((resolve) => {
+                        setTimeout(() => {
+                            if (targetEmoji.hp <= 0) {
+                                moveToGraveyard(targetEmoji, i); // HPが0以下ならコマを削除
+                                dragonEffectTriggered = true;
+                                updateLog(`${owner === 'player' ? 'あなたの' : '相手の'}${originalEmoji}が破壊された`);
+                            } else {
+                                targetEmoji.emoji = originalEmoji; // 元の絵文字に戻す
+                                renderBoard();
+                            }
+                            resolve();
+                        }, 500); // ダメージエフェクトを表示する時間
+                    });
+
+                    damagePromises.push(damagePromise);
+                }
+            });
+
+            // すべてのダメージエフェクトが完了した後に封印を適用
+            Promise.all(damagePromises).then(() => {
+                if (dragonEffectTriggered) { // ドラゴン効果がトリガーされた場合にのみ封印を適用
+                    const emptyIndices = board.map((cell, index) => cell === null ? index : null).filter(index => index !== null);
+                    if (emptyIndices.length > 0) {
+                        const randomIndex = emptyIndices[Math.floor(Math.random() * emptyIndices.length)];
+                        board[randomIndex] = {
+                            emoji: {
+                                emoji: "❌",
+                                name: "封印",
+                                hp: 99,
+                                effect: "none"
+                            },
+                            player: 'sealed',
+                            sealPlayer: player
+                        };
+                        sealedTiles.push(randomIndex);
+                        updateLog(`${player === 'player' ? '相手のターン終了時まで' : 'あなたのターン終了時まで'}マスが封印された`);
+                        renderBoard(); // 封印の後でボードを再描画
+                    }
+                }
+            });
+        }
+
+        //宇宙人の効果
+        function returnEnemyHand(index, player) {
+            const enemyPieces = board.map((cell, i) => (cell && cell.player !== player && cell.player !== 'sealed') ? i : null).filter(i => i !== null);
+            if (enemyPieces.length > 0) {
+                const targetIndex = enemyPieces[Math.floor(Math.random() * enemyPieces.length)];
+                const targetEmoji = deepCopy(board[targetIndex].emoji); // 深いコピーを作成
+
+                // コマのHPを最大値にリセット
+                targetEmoji.hp = targetEmoji.maxHp;
+
+                // エフェクトや表示を初期状態に戻す
+                targetEmoji.emoji = emojis.find(e => e.name === targetEmoji.name).emoji;
+
+                if (player === 'player') {
+                    npcEmojis.push(targetEmoji);
+                    renderHand(npcEmojis, npcHand, 'npc');
+                    updateLog(`相手の手札に${targetEmoji.emoji}が加わった`);
+                } else if (player === 'npc') {
+                    playerEmojis.push(targetEmoji);
+                    renderHand(playerEmojis, playerHand, 'player');
+                    updateLog(`あなたの手札に${targetEmoji.emoji}が加わった`);
+                }
+                board[targetIndex] = null;
+                renderBoard();
+            }
+        }
+
+
+        // 鬼の効果
+        function damageAdjacentAllEnemy(index, player) {
+            const boardSize = 3; // 3x3のボードを仮定
+            const neighbors = [];
+            // 現在のコマの位置の行と列を計算
+            const row = Math.floor(index / boardSize);
+            const col = index % boardSize;
+            // 上下左右の位置をチェックして隣接する位置を追加
+            if (row > 0) neighbors.push(index - boardSize); // 上
+            if (row < boardSize - 1) neighbors.push(index + boardSize); // 下
+            if (col > 0) neighbors.push(index - 1); // 左
+            if (col < boardSize - 1) neighbors.push(index + 1); // 右
+            // 上下左右の隣接するコマを探し、ダメージを与える
+            const validTargets = neighbors.filter(i => board[i] && board[i].player !== player);
+            validTargets.forEach(i => {
+                const targetEmoji = board[i].emoji;
+                const originalEmoji = targetEmoji.emoji; // 元の絵文字を保存
+                // ダメージを与える
+                targetEmoji.hp -= 4;
+                targetEmoji.emoji = '💥'; // ダメージエフェクトを設定
+                renderBoard();
+                setTimeout(() => {
+                    targetEmoji.emoji = originalEmoji; // 元の絵文字に戻す
+                    renderBoard();
+                    if (targetEmoji.hp <= 0) {
+                        moveToGraveyard(targetEmoji, i); // 破壊されたコマを取り除く
+                        updateLog(`${originalEmoji}が破壊された`);
+                    }
+                }, 500); // エフェクト表示後に元の絵文字に戻す時間を設定
+                updateLog(`${player === 'player' ? '相手の' : 'あなたの'}${originalEmoji}が4点のダメージを受けた`);
+            });
+        }
+        // 天使の効果
+        function addRandomHandBoth() {
+            const randomEmojiForPlayer = {
+                ...emojis[Math.floor(Math.random() * emojis.length)]
+            };
+            const randomEmojiForNPC = {
+                ...emojis[Math.floor(Math.random() * emojis.length)]
+            };
+            playerEmojis.push(randomEmojiForPlayer);
+            npcEmojis.push(randomEmojiForNPC);
+            renderHand(playerEmojis, playerHand, 'player');
+            renderHand(npcEmojis, npcHand, 'npc');
+            updateLog(`あなたの手札に${randomEmojiForPlayer.emoji}が加わった`);
+            updateLog(`相手の手札に${randomEmojiForNPC.emoji}が加わった`);
+        }
+
+        function updateLog(entry) {
+            logEntries.push(entry);
+            if (logContainer.style.display !== 'none') {
+                const logText = logEntries.map(log => `<p>${log}</p>`).join('');
+                logContainer.innerHTML = logText;
+            }
+        }
+
+        function toggleLog() {
+            logContainer.style.display = logContainer.style.display === 'none' ? 'block' : 'none';
+            if (logContainer.style.display === 'block') {
+                const logText = logEntries.map(log => `<p>${log}</p>`).join('');
+                logContainer.innerHTML = logText;
+            }
+        }
+
+        function resetGame() {
+            playerTurn = true;
+            gameOver = false;
+            logEntries = [];
+            board.fill(null);
+            playerEmojis = [];
+            npcEmojis = [];
+            document.getElementById('rule-container').style.display = 'block';
+            document.getElementById('npc-hand-container').style.display = 'none';
+            document.getElementById('player-hand-container').style.display = 'none';
+            gameBoard.style.display = 'none';
+            message.style.display = 'none';
+            turnIndicator.style.display = 'none';
+            restartButton.style.display = 'none';
+            levelSelect.style.display = 'block';
+            forfeitButton.style.display = 'none';
+            logButton.style.display = 'none'; // リセット時にテキストログボタンを非表示
+            logContainer.style.display = 'none';
+            logContainer.innerHTML = '';
+            // メッセージをクリア
+            message.textContent = '';
+        }
+
+        function forfeitGame() {
+            updateLog("あなたは降参した");
+            disableBoard();
+            message.textContent = "降参しました";
+            restartButton.style.display = 'block';
+            forfeitButton.style.display = 'none';
+            resetScore();
+        }
+
+        function updateScore() {
+            score += level * 10;
+            winStreak++;
+            winStreakScore.innerHTML = `<br>連勝数: ${winStreak} スコア: ${score}点`;
+        }
+
+        function resetScore() {
+            winStreak = 0;
+            score = 0;
+            winStreakScore.innerHTML = `<br>連勝数: ${winStreak} スコア: ${score}点`;
+        }
+
+
+        function endTurn() {
+            if (isProcessingEffect) return; // 処理中であれば関数を終了
+
+            setTimeout(() => {
+                updateSealStatus();
+
+                let damagePromises = [];
+
+                board.forEach((cell, index) => {
+                    if (cell && cell.emoji.name === "爆弾") {
+                        const damagePromise = new Promise((resolve) => {
+                            const originalEmoji = cell.emoji.emoji;
+                            cell.emoji.emoji = '💥';
+                            renderBoard();
+
+                            setTimeout(() => {
+                                cell.emoji.emoji = originalEmoji;
+                                renderBoard();
+
+                                cell.emoji.hp -= 1;
+                                if (cell.emoji.hp <= 0) {
+                                    explodeOnDeath(index, cell.player).then(resolve);
+                                } else {
+                                    resolve();
+                                }
+                            }, 500);
+                        });
+
+                        damagePromises.push(damagePromise);
+                    }
+                });
+
+                Promise.all(damagePromises).then(() => {
+                    checkWin();
+                    checkDraw();
+                    renderBoard();
+                });
+            }, 1000);
+        }
+
+        function checkDraw() {
+            const hasSealedTiles = board.some(cell => cell && cell.player === 'sealed');
+            if (!hasSealedTiles && (board.every(cell => cell !== null) || (playerEmojis.length === 0 && npcEmojis.length === 0))) {
+                message.textContent = "引き分け！";
+                updateLog("ゲーム終了：引き分け");
+                disableBoard();
+                restartButton.style.display = 'block';
+                forfeitButton.style.display = 'none';
+                gameOver = true;
+                resetScore();
+            }
+        }
+
+    </script>
+</body>
+
+</html>
